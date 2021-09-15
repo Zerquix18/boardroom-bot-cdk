@@ -12,10 +12,18 @@ export class BoardroomStackStack extends cdk.Stack {
         name: 'id',
         type: AttributeType.STRING
       },
-      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      // to be uncommented for production:
+      // removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
-    const vpc = new ec2.Vpc(this, 'VPC');
+    const vpc = new ec2.Vpc(this, 'VPC', {
+      subnetConfiguration: [
+        {
+          name: 'ingress',
+          subnetType: ec2.SubnetType.PUBLIC,
+        }
+      ]
+    });
 
     const defaultSecurityGroup = new ec2.SecurityGroup(this, 'SecurityGroup', {
       vpc,
@@ -25,12 +33,14 @@ export class BoardroomStackStack extends cdk.Stack {
     defaultSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(22), 'allow ssh access from the world');
 
     const instance = new ec2.Instance(this, 'BotInstance', {
+      keyName: 'im-luis-key', // to be changed!
       vpc,
       instanceType: new ec2.InstanceType('t2.micro'),
+      instanceName: 'bot-instance',
+      securityGroup: defaultSecurityGroup,
       machineImage: ec2.MachineImage.genericLinux({
         'us-east-1': 'ami-09e67e426f25ce0d7',
       }),
-      securityGroup: defaultSecurityGroup,
     });
 
   }
