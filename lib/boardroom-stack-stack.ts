@@ -1,6 +1,8 @@
 import * as cdk from '@aws-cdk/core';
-import { Table, AttributeType } from '@aws-cdk/aws-dynamodb';
 import * as ec2 from '@aws-cdk/aws-ec2';
+import * as path from 'path';
+import { Table, AttributeType } from '@aws-cdk/aws-dynamodb';
+import { Asset } from '@aws-cdk/aws-s3-assets';
 
 export class BoardroomStackStack extends cdk.Stack {
   constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
@@ -43,5 +45,20 @@ export class BoardroomStackStack extends cdk.Stack {
       }),
     });
 
+    const asset = new Asset(this, 'ConfigureAsset', {
+      path: path.join(__dirname, '../scripts/setup.sh'),
+    });
+
+    const localPath = instance.userData.addS3DownloadCommand({
+      bucket: asset.bucket,
+      bucketKey: asset.s3ObjectKey,
+    });
+
+    instance.userData.addExecuteFileCommand({
+      filePath: localPath,
+      arguments: '--verbose -y'
+    });
+
+    asset.grantRead(instance.role);
   }
 }
