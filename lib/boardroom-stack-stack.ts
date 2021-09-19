@@ -3,6 +3,7 @@ import * as ec2 from '@aws-cdk/aws-ec2';
 import * as path from 'path';
 import * as fs from 'fs';
 import { Table, AttributeType } from '@aws-cdk/aws-dynamodb';
+import { CfnAccessKey, User } from '@aws-cdk/aws-iam';
 
 export class BoardroomStackStack extends cdk.Stack {
   constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
@@ -11,6 +12,17 @@ export class BoardroomStackStack extends cdk.Stack {
     if (! process.env.BOT_TOKEN) {
       throw new Error('Set the BOT_TOKEN env bar. `export BOT_TOKEN=....`');
     }
+
+    const user = new User(this, 'EC2User', {
+      userName: 'bot-user',
+    });
+
+    const accessKey = new CfnAccessKey(this, 'EC2UserKey', {
+      userName: user.userName,
+    });
+
+    const ACCESS_KEY = accessKey.ref;
+    const SECRET_ACCESS_KEY = accessKey.attrSecretAccessKey;
 
     /********************************** DATABASE ********************/
     const subscriptionsTable = new Table(this, 'DynamoDBSubscriptionsTable', {
@@ -22,6 +34,8 @@ export class BoardroomStackStack extends cdk.Stack {
       // to be uncommented for production:
       removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
+
+    subscriptionsTable.grantReadWriteData(user);
 
     /********************************** EC2 ******************************/
 
@@ -53,8 +67,14 @@ export class BoardroomStackStack extends cdk.Stack {
     });
 
     instance.addUserData(
-      `echo "export BOT_TOKEN=${process.env.BOT_TOKEN}" >> ~/.bashrc`,
-      fs.readFileSync(path.join(__dirname, '../scripts/setup.sh'), 'utf-8')
+      `mkdir ~/.aws && echo "[default]
+output=json
+region = us-east-1" > ~/.aws/config && echo "[default]
+aws_access_key_id = ${ACCESS_KEY}
+aws_secret_access_key = ${SECRET_ACCESS_KEY}" > ~/.aws/credentials`,
+      fs.readFileSync(path.join(__dirname, '../scripts/setup.sh'), 'utf-8').replace('$BOT_TOKEN', process.env.BOT_TOKEN)
     );
+
+    subscriptionsTable.grantReadWriteData(instance);
   }
 }
