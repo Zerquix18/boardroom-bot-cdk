@@ -1,13 +1,18 @@
 import * as cdk from '@aws-cdk/core';
 import * as ec2 from '@aws-cdk/aws-ec2';
 import * as path from 'path';
+import * as fs from 'fs';
 import { Table, AttributeType } from '@aws-cdk/aws-dynamodb';
-import { Asset } from '@aws-cdk/aws-s3-assets';
 
 export class BoardroomStackStack extends cdk.Stack {
   constructor(scope: cdk.Construct, id: string, props?: cdk.StackProps) {
     super(scope, id, props);
 
+    if (! process.env.BOT_TOKEN) {
+      throw new Error('Set the BOT_TOKEN env bar. `export BOT_TOKEN=....`');
+    }
+
+    /********************************** DATABASE ********************/
     const subscriptionsTable = new Table(this, 'DynamoDBSubscriptionsTable', {
       tableName: 'subscriptions',
       partitionKey: {
@@ -15,8 +20,10 @@ export class BoardroomStackStack extends cdk.Stack {
         type: AttributeType.STRING
       },
       // to be uncommented for production:
-      // removalPolicy: cdk.RemovalPolicy.RETAIN,
+      removalPolicy: cdk.RemovalPolicy.DESTROY,
     });
+
+    /********************************** EC2 ******************************/
 
     const vpc = new ec2.Vpc(this, 'VPC', {
       subnetConfiguration: [
@@ -45,20 +52,9 @@ export class BoardroomStackStack extends cdk.Stack {
       }),
     });
 
-    const asset = new Asset(this, 'ConfigureAsset', {
-      path: path.join(__dirname, '../scripts/setup.sh'),
-    });
-
-    const localPath = instance.userData.addS3DownloadCommand({
-      bucket: asset.bucket,
-      bucketKey: asset.s3ObjectKey,
-    });
-
-    instance.userData.addExecuteFileCommand({
-      filePath: localPath,
-      arguments: '--verbose -y'
-    });
-
-    asset.grantRead(instance.role);
+    instance.addUserData(
+      `echo "export BOT_TOKEN=${process.env.BOT_TOKEN}" >> ~/.bashrc`,
+      fs.readFileSync(path.join(__dirname, '../scripts/setup.sh'), 'utf-8')
+    );
   }
 }
