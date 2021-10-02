@@ -56,7 +56,7 @@ export class BoardroomStackStack extends cdk.Stack {
     defaultSecurityGroup.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(22), 'allow ssh access from the world');
 
     const instance = new ec2.Instance(this, 'BotInstance', {
-      keyName: 'im-luis-key', // to be changed!
+      keyName: 'bot-ssh-key',
       vpc,
       instanceType: new ec2.InstanceType('t2.micro'),
       instanceName: 'bot-instance',
